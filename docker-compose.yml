@@ -1,0 +1,40 @@
+# Docker Compose configuration for TidyData
+# Core services:
+# - ml-service: Handles embeddings and ML tasks
+# - qdrant: Vector database for semantic search
+
+services:
+  ml-service:
+    build: 
+      context: ./ml-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"  # FastAPI service
+    volumes:
+      - ./ml-service:/app  # For development
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:  # Persistent storage for vector database
