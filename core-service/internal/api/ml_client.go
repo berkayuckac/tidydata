@@ -51,8 +51,9 @@ type UnifiedContent struct {
 }
 
 type UnifiedSearchResponse struct {
-	Query   string                `json:"query"`
-	Results []UnifiedSearchResult `json:"results"`
+	Query     string                `json:"query"`
+	Results   []UnifiedSearchResult `json:"results"`
+	TimeTaken float64               `json:"time_taken"`
 }
 
 type AddImageResponse struct {

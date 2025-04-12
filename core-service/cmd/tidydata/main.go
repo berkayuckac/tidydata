@@ -15,7 +15,7 @@ import (
 var (
 	mlClient  *api.MLClient
 	fileFlag  string
-	version   = "v0.1.0"
+	version   = "v0.2.1"
 	threshold float64
 )
 
@@ -81,7 +81,9 @@ Results will include both relevant text and images, ranked by relevance.`,
 			return fmt.Errorf("error searching: %w", err)
 		}
 
-		fmt.Printf("Search results for: %s (threshold: %.2f)\n\n", query, threshold)
+		fmt.Printf("Search results for: %s (threshold: %.2f)\n", query, threshold)
+		fmt.Printf("Time taken: %.6f seconds\n\n", resp.TimeTaken)
+
 		for _, result := range resp.Results {
 			fmt.Printf("Score: %.2f\n", result.Score)
 			if result.SourceType == "text" {

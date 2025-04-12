@@ -9,6 +9,7 @@ import uuid
 import logging
 import io
 import asyncio
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -108,6 +109,14 @@ class UnifiedSearchResult(BaseModel):
 class UnifiedSearchResponse(BaseModel):
     query: str
     results: List[UnifiedSearchResult]
+    time_taken: float = Field(..., description="Time taken for the search operation in seconds")
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "query": "example query",
+            "results": [],
+            "time_taken": 0.123456
+        }
+    })
 
 @app.post("/embed", response_model=dict)
 async def generate_embedding(input_data: TextInput):
@@ -165,6 +174,8 @@ async def add_document(input_data: DocumentInput):
 async def unified_search(query: str, limit: int = 10, score_threshold: float = 0.5):
     """Search across both text and images using a single query."""
     try:
+        start_time = time.perf_counter()
+        
         text_embedding = text_model.get_embeddings(query)
         image_embedding = image_model.get_text_embedding(query)
         
@@ -176,6 +187,8 @@ async def unified_search(query: str, limit: int = 10, score_threshold: float = 0
             limit=limit,
             score_threshold=score_threshold
         )
+        
+        time_taken = time.perf_counter() - start_time
         
         processed_results = []
         for result in results:
@@ -199,7 +212,8 @@ async def unified_search(query: str, limit: int = 10, score_threshold: float = 0
         
         return {
             "query": query,
-            "results": processed_results
+            "results": processed_results,
+            "time_taken": time_taken
         }
     except Exception as e:
         logger.error(f"Error in unified search: {str(e)}", exc_info=True)
