@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 )
 
 type HTTPClient interface {
 	Post(url string, contentType string, body io.Reader) (*http.Response, error)
+	Get(url string) (*http.Response, error)
 }
 
 type MLClient struct {
@@ -28,21 +31,46 @@ type Document struct {
 	Text string `json:"text"`
 }
 
-type SearchQuery struct {
-	Query          string  `json:"query"`
-	Limit          int     `json:"limit"`
-	ScoreThreshold float64 `json:"score_threshold"`
+type ImageMetadata struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	Description string `json:"description,omitempty"`
 }
 
-type SearchResult struct {
-	ID    string  `json:"id"`
-	Score float64 `json:"score"`
-	Text  string  `json:"text"`
+type UnifiedSearchResult struct {
+	ID         string         `json:"id"`
+	Score      float64        `json:"score"`
+	SourceType string         `json:"source_type"`
+	Content    UnifiedContent `json:"content"`
 }
 
-type SearchResponse struct {
-	Query   string         `json:"query"`
-	Results []SearchResult `json:"results"`
+type UnifiedContent struct {
+	Text      string        `json:"text,omitempty"`
+	Metadata  ImageMetadata `json:"metadata,omitempty"`
+	ImageData string        `json:"image_data,omitempty"`
+}
+
+type UnifiedSearchResponse struct {
+	Query   string                `json:"query"`
+	Results []UnifiedSearchResult `json:"results"`
+}
+
+type AddImageResponse struct {
+	ImageID  string        `json:"image_id"`
+	Status   string        `json:"status"`
+	Metadata ImageMetadata `json:"metadata"`
+}
+
+type SimilarImagesResponse struct {
+	QueryImage string        `json:"query_image"`
+	Results    []ImageResult `json:"results"`
+}
+
+type ImageResult struct {
+	ID        string        `json:"id"`
+	Score     float64       `json:"score"`
+	Metadata  ImageMetadata `json:"metadata"`
+	ImageData string        `json:"image_data"`
 }
 
 func (c *MLClient) AddDocument(text string) (string, error) {
@@ -73,18 +101,20 @@ func (c *MLClient) AddDocument(text string) (string, error) {
 	return result.DocumentID, nil
 }
 
-func (c *MLClient) SearchDocuments(query string, limit int, scoreThreshold float64) (*SearchResponse, error) {
-	searchQuery := SearchQuery{
-		Query:          query,
-		Limit:          limit,
-		ScoreThreshold: scoreThreshold,
-	}
-	jsonData, err := json.Marshal(searchQuery)
+func (c *MLClient) Search(query string, limit int, scoreThreshold float64) (*UnifiedSearchResponse, error) {
+	baseURL := c.baseURL + "/search"
+	u, err := url.Parse(baseURL)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling search query: %w", err)
+		return nil, fmt.Errorf("error parsing URL: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(c.baseURL+"/search", "application/json", bytes.NewBuffer(jsonData))
+	q := u.Query()
+	q.Set("query", query)
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("score_threshold", fmt.Sprintf("%f", scoreThreshold))
+	u.RawQuery = q.Encode()
+
+	resp, err := c.httpClient.Get(u.String())
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %w", err)
 	}
@@ -94,10 +124,81 @@ func (c *MLClient) SearchDocuments(query string, limit int, scoreThreshold float
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var searchResp SearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
+	var result UnifiedSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("error decoding response: %w", err)
 	}
 
-	return &searchResp, nil
+	return &result, nil
+}
+
+func (c *MLClient) AddImage(imageData []byte, filename string) (*AddImageResponse, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("image", filename)
+	if err != nil {
+		return nil, fmt.Errorf("error creating form file: %w", err)
+	}
+	if _, err := part.Write(imageData); err != nil {
+		return nil, fmt.Errorf("error writing image data: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("error closing multipart writer: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(c.baseURL+"/images", writer.FormDataContentType(), body)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var result AddImageResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (c *MLClient) FindSimilarImages(imageData []byte, limit int, scoreThreshold float64) (*SimilarImagesResponse, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("image", "query_image")
+	if err != nil {
+		return nil, fmt.Errorf("error creating form file: %w", err)
+	}
+	if _, err := part.Write(imageData); err != nil {
+		return nil, fmt.Errorf("error writing image data: %w", err)
+	}
+
+	_ = writer.WriteField("limit", fmt.Sprintf("%d", limit))
+	_ = writer.WriteField("score_threshold", fmt.Sprintf("%f", scoreThreshold))
+
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("error closing multipart writer: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(c.baseURL+"/images/similar", writer.FormDataContentType(), body)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var result SimilarImagesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	return &result, nil
 }

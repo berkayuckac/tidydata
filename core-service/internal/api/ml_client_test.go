@@ -6,12 +6,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 )
 
 type MockHTTPClient struct {
 	PostFunc func(url string, contentType string, body io.Reader) (*http.Response, error)
+	GetFunc  func(url string) (*http.Response, error)
 }
 
 func NewMLClientWithHTTPClient(baseURL string, httpClient HTTPClient) *MLClient {
@@ -23,6 +25,10 @@ func NewMLClientWithHTTPClient(baseURL string, httpClient HTTPClient) *MLClient 
 
 func (m *MockHTTPClient) Post(url string, contentType string, body io.Reader) (*http.Response, error) {
 	return m.PostFunc(url, contentType, body)
+}
+
+func (m *MockHTTPClient) Get(url string) (*http.Response, error) {
+	return m.GetFunc(url)
 }
 
 func TestNewMLClient(t *testing.T) {
@@ -119,7 +125,7 @@ func TestAddDocument(t *testing.T) {
 	}
 }
 
-func TestSearchDocuments(t *testing.T) {
+func TestSearch(t *testing.T) {
 	tests := []struct {
 		name           string
 		query          string
@@ -140,8 +146,18 @@ func TestSearchDocuments(t *testing.T) {
 			mockResp: `{
 				"query": "test query",
 				"results": [
-					{"id": "doc1", "score": 0.8, "text": "result 1"},
-					{"id": "doc2", "score": 0.7, "text": "result 2"}
+					{
+						"id": "doc1",
+						"score": 0.8,
+						"source_type": "text",
+						"content": {"text": "result 1"}
+					},
+					{
+						"id": "doc2",
+						"score": 0.7,
+						"source_type": "text",
+						"content": {"text": "result 2"}
+					}
 				]
 			}`,
 			expectedCount: 2,
@@ -167,31 +183,35 @@ func TestSearchDocuments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				PostFunc: func(url string, contentType string, body io.Reader) (*http.Response, error) {
+				GetFunc: func(urlStr string) (*http.Response, error) {
 					if tt.mockErr != nil {
 						return nil, tt.mockErr
 					}
 
-					// Verify request
-					if !strings.HasSuffix(url, "/search") {
-						t.Errorf("Expected /search endpoint, got %s", url)
-					}
-					if contentType != "application/json" {
-						t.Errorf("Expected application/json content type, got %s", contentType)
+					// Parse and verify URL
+					parsedURL, err := url.Parse(urlStr)
+					if err != nil {
+						t.Errorf("Failed to parse URL: %v", err)
+						return nil, err
 					}
 
-					var query SearchQuery
-					if err := json.NewDecoder(body).Decode(&query); err != nil {
-						t.Errorf("Error decoding request body: %v", err)
+					// Verify endpoint
+					if !strings.Contains(parsedURL.Path, "/search") {
+						t.Errorf("Expected /search endpoint in URL: %s", urlStr)
 					}
-					if query.Query != tt.query {
-						t.Errorf("Expected query %q, got %q", tt.query, query.Query)
+
+					// Get query parameters
+					query := parsedURL.Query()
+
+					// Verify query parameters
+					if q := query.Get("query"); q != tt.query {
+						t.Errorf("Expected query parameter %q, got %q", tt.query, q)
 					}
-					if query.Limit != tt.limit {
-						t.Errorf("Expected limit %d, got %d", tt.limit, query.Limit)
+					if !query.Has("limit") {
+						t.Errorf("Expected limit parameter in URL: %s", urlStr)
 					}
-					if query.ScoreThreshold != tt.scoreThreshold {
-						t.Errorf("Expected score threshold %f, got %f", tt.scoreThreshold, query.ScoreThreshold)
+					if !query.Has("score_threshold") {
+						t.Errorf("Expected score_threshold parameter in URL: %s", urlStr)
 					}
 
 					return &http.Response{
@@ -202,7 +222,7 @@ func TestSearchDocuments(t *testing.T) {
 			}
 
 			client := NewMLClientWithHTTPClient("http://test", mockClient)
-			resp, err := client.SearchDocuments(tt.query, tt.limit, tt.scoreThreshold)
+			resp, err := client.Search(tt.query, tt.limit, tt.scoreThreshold)
 
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")

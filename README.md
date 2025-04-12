@@ -1,10 +1,11 @@
 # TidyData
 
-A high-performance, self-hosted personal knowledge management system that enables semantic search across your text content.
+A high-performance, self-hosted personal knowledge management system that enables semantic search across your text content and images.
 
 ## Features
 
 - 🔍 Semantic Search: Find content based on meaning, not just keywords
+- 🖼️ Cross-Modal Search: Search images using text descriptions and vice versa
 - 💻 Local First: All data stays on your machine
 - 🐳 Easy Setup: Just Docker and Go required
 - 🔋 Battery Included: Comes with all necessary components
@@ -36,13 +37,19 @@ cd core-service
 go build -o bin/tidydata cmd/tidydata/main.go
 
 # Add alias to your shell (one-time setup)
-echo "alias tidydata='$(pwd)/bin/tidydata'" >> ~/.zshrc
-source ~/.zshrc
+echo "alias tidydata='$(pwd)/bin/tidydata'" >> ~/.zshrc  # for zsh
+# OR
+echo "alias tidydata='$(pwd)/bin/tidydata'" >> ~/.bashrc # for bash
+
+# Reload your shell configuration
+source ~/.zshrc  # for zsh
+# OR
+source ~/.bashrc # for bash
 ```
 
 ### Usage
 
-1. Add content:
+1. Add text content:
 ```bash
 # Add text directly
 tidydata add "Your text content here"
@@ -51,20 +58,41 @@ tidydata add "Your text content here"
 tidydata add -f path/to/your/file.txt
 ```
 
-2. Search content:
+2. Add images:
 ```bash
+# Add an image
+tidydata image add path/to/your/image.jpg
+
+# Find similar images
+tidydata image similar path/to/your/image.jpg
+```
+
+3. Search content:
+```bash
+# Basic search (uses default threshold of 0.1)
 tidydata search "your search query"
+
+# Search with custom threshold
+tidydata search "your search query" --threshold 0.3
+
+# Recommended thresholds:
+# - For text-to-text search: 0.3-0.7
+# - For text-to-image search: 0.1-0.3
 ```
 
 Example search output:
 ```
-Search results for: knowledge management
+Search results for: cat driving a car (threshold: 0.1)
 
-Score: 0.89
-Text: TidyData is a powerful knowledge management system...
+Score: 0.31
+Type: Text
+Content: Car travel guides for road trips across the country.
 ---
-Score: 0.75
-Text: Organize and search through your content...
+Score: 0.28
+Type: Image
+File: cat_driving.jpg
+Description: A cat sitting in a car driver's seat
+---
 ```
 
 ## Architecture
