@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
+const config: NextConfig = {
+  reactStrictMode: true,
+  // Allow requests, adjust this to your allowed origins
+  hostname: '0.0.0.0',
+  experimental: {
+    serverMinification: false
+  }
 };
 
-export default nextConfig;
+export default config;

@@ -2,16 +2,34 @@
 # Core services:
 # - ml-service: Handles embeddings and ML tasks
 # - qdrant: Vector database for semantic search
+# - ui-service: Next.js frontend application
 
 services:
+  ui-service:
+    build:
+      context: ./ui-service
+      dockerfile: Dockerfile
+    ports:
+      - "0.0.0.0:3000:3000" 
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+      - NEXT_PUBLIC_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    depends_on:
+      - ml-service
+
   ml-service:
     build: 
       context: ./ml-service
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"  # FastAPI service
-    volumes:
-      - ./ml-service:/app  # For development
+      - "0.0.0.0:8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
       - MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
@@ -25,8 +43,8 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     ports:
-      - "6333:6333"  # REST API
-      - "6334:6334"  # gRPC
+      - "0.0.0.0:6333:6333"
+      - "0.0.0.0:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
