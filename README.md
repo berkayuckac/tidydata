@@ -9,6 +9,7 @@ A high-performance, self-hosted personal knowledge management system that enable
 - 💻 Local First: All data stays on your machine
 - 🐳 Easy Setup: Just Docker and Go required
 - 🔋 Battery Included: Comes with all necessary components
+- 🎨 Modern UI
 
 ## Quick Start
 
@@ -26,7 +27,7 @@ git clone https://github.com/berkayuckac/tidydata.git
 cd tidydata
 ```
 
-2. Start the backend services:
+2. Start the services:
 ```bash
 docker-compose up -d
 ```
@@ -49,6 +50,7 @@ source ~/.bashrc # for bash
 
 ### Usage
 
+#### Command Line Interface
 1. Add text content:
 ```bash
 # Add text directly
@@ -95,18 +97,31 @@ Description: A cat sitting in a car driver's seat
 ---
 ```
 
+#### Web Interface
+The web interface provides a visual way to interact with your knowledge base:
+
+- Local access: http://localhost:3000
+- Network access: http://<your-machine-ip>:3000
+
 ## Architecture
 
-The system consists of two main services:
+The system consists of three main services:
 
 1. **ML Service (Python/FastAPI)**
    - Handles text embedding generation
    - Uses sentence-transformers (all-MiniLM-L6-v2)
+   - Uses CLIP for image understanding
+
 
 2. **Vector Database (Qdrant)**
    - Stores documents and embeddings
    - Enables semantic search
    - Persists data locally
+
+3. **UI Service (Next.js)**
+   - Modern web interface
+   - Real-time search capabilities
+   - Visual content management
 
 ## Development
 
@@ -118,6 +133,7 @@ docker-compose up
 The services will be available at:
 - ML Service: http://localhost:8000
 - Qdrant: http://localhost:6333
+- UI Service: http://localhost:3000
 
 ## License
 
