@@ -8,12 +8,12 @@ import time
 logger = logging.getLogger(__name__)
 
 class EmbeddingModel:
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "sentence-transformers/all-mpnet-base-v2"):
         """Initialize the embedding model.
         
         Args:
-            model_name: The name of the model to use
-                Default: all-MiniLM-L6-v2 (384 dimensions)
+            model_name: Name of the sentence transformer model to use
+                Default: all-mpnet-base-v2
         """
         logger.info(f"Loading model {model_name}")
         

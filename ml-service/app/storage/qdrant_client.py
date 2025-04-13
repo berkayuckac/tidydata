@@ -18,7 +18,7 @@ class QdrantClient:
         """
         self.base_url = f"http://{host}:{port}"
         self.collections = {
-            "documents": {"dim": 384},  # text embeddings
+            "documents": {"dim": 768},  # MPNet embeddings
             "images": {"dim": 512}      # CLIP embeddings
         }
         
@@ -57,10 +57,22 @@ class QdrantClient:
                         if response.status_code == 200:
                             logger.info(f"Created collection: {name}")
                         else:
-                            logger.error(f"Failed to create collection {name}: {response.text}")
-                    
+                            error_msg = f"Failed to create collection {name}: {response.text}"
+                            logger.error(error_msg)
+                            raise Exception(error_msg)
+                    elif response.status_code != 200:
+                        error_msg = f"Failed to check collection {name}: {response.text}"
+                        logger.error(error_msg)
+                        raise Exception(error_msg)
+                    else:
+                        logger.info(f"Collection {name} already exists")
+                        
             except Exception as e:
                 logger.error(f"Error initializing collection {name}: {str(e)}")
+                self._collections_initialized = False
+                raise
+                
+        self._collections_initialized = True
     
     async def add_document(self,
                           document_id: str,

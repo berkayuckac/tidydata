@@ -107,7 +107,7 @@ export default function Home() {
           block: 'center'
         });
       }
-      if (e.key === "i" || e.key === "I" && (e.metaKey || e.ctrlKey)) {
+      if ((e.key === "i" || e.key === "I") && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setShowAddContent(true);
       }
