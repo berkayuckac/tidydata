@@ -117,7 +117,7 @@ export default function Home() {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  const handleSearch = async () => {
+  const handleSearch = async (initialThreshold?: number) => {
     if (!searchQuery.trim()) return;
     
     setIsSearching(true);
@@ -134,12 +134,10 @@ export default function Home() {
       let url;
       try {
         url = new URL(formattedEndpoint);
-        // Make sure we have http:// or https://
         if (!url.protocol.startsWith('http')) {
           url = new URL(`http://${formattedEndpoint}`);
         }
       } catch (e) {
-        // If URL parsing fails, try adding http:// and try again
         try {
           url = new URL(`http://${formattedEndpoint}`);
         } catch (e) {
@@ -150,21 +148,37 @@ export default function Home() {
       // Remove trailing slash if present
       const baseUrl = url.toString().replace(/\/$/, '');
       
-      // Construct the search URL
-      const searchUrl = new URL('/search', baseUrl);
-      searchUrl.searchParams.append('query', searchQuery);
-      searchUrl.searchParams.append('limit', '10');
-      searchUrl.searchParams.append('score_threshold', searchThreshold.toString());
+      // Start with initial threshold or current threshold
+      let currentThreshold = initialThreshold ?? searchThreshold;
+      let results = [];
+      let isFirstTry = true;
+      
+      // Keep trying with lower thresholds until we find results or hit 0
+      while (currentThreshold >= 0) {
+        // Show threshold slider after first attempt if no results
+        if (!isFirstTry) {
+          setShowThreshold(true);
+          setSearchThreshold(currentThreshold);
+          toast.info('Adjusting threshold...', {
+            description: `Trying with threshold ${currentThreshold.toFixed(2)}`
+          });
+          // Add a small delay to make the threshold adjustment visible
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
 
-      const response = await fetch(searchUrl.toString());
-      
-      if (!response.ok) {
-        throw new Error(`Search failed with status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setSearchResults(
-        data.results.map((result: any) => ({
+        const searchUrl = new URL('/search', baseUrl);
+        searchUrl.searchParams.append('query', searchQuery);
+        searchUrl.searchParams.append('limit', '10');
+        searchUrl.searchParams.append('score_threshold', currentThreshold.toString());
+
+        const response = await fetch(searchUrl.toString());
+        
+        if (!response.ok) {
+          throw new Error(`Search failed with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        results = data.results.map((result: any) => ({
           type: result.source_type,
           score: result.score,
           text: result.source_type === "text" ? result.content.text : undefined,
@@ -172,8 +186,31 @@ export default function Home() {
           content_type: result.source_type === "image" ? result.content.metadata.content_type : undefined,
           filename: result.source_type === "image" ? result.content.metadata.filename : undefined,
           description: result.source_type === "image" ? result.content.metadata.description : undefined,
-        }))
-      );
+        }));
+
+        // If we found results, or hit 0, break
+        if (results.length > 0 || currentThreshold === 0) {
+          break;
+        }
+
+        // Reduce threshold by 0.05 and try again
+        currentThreshold = Math.max(0, currentThreshold - 0.05);
+        isFirstTry = false;
+      }
+
+      setSearchResults(results);
+      
+      if (currentThreshold !== searchThreshold) {
+        if (results.length > 0) {
+          toast.success('Results found', {
+            description: `Found ${results.length} results with threshold ${currentThreshold.toFixed(2)}`
+          });
+        } else {
+          toast.error('No results found', {
+            description: 'No matches found even with minimum threshold'
+          });
+        }
+      }
     } catch (error) {
       console.error('Search error:', error);
       toast.error('Search failed', {
@@ -459,7 +496,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <Button onClick={handleSearch} disabled={isSearching}>
+            <Button onClick={() => handleSearch()} disabled={isSearching}>
               {isSearching ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
