@@ -1,0 +1,8 @@
+Images:
+URL: https://unsplash.com/photos/dog-running-on-beach-during-daytime-yihlaRCCvd4
+URL: https://unsplash.com/photos/long-coated-black-and-white-dog-during-daytime-mx0DEnfYxic
+
+German Shepherd Info:
+1. Wikipedia Article
+Source: Wikipedia
+URL: https://en.wikipedia.org/wiki/German_Shepherd

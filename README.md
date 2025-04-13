@@ -11,6 +11,17 @@ A high-performance, self-hosted personal knowledge management system that enable
 - 🔋 Battery Included: Comes with all necessary components
 - 🎨 Modern UI
 
+### Screenshots
+
+#### Semantic Search Interface
+![Semantic Search](assets/tidydata-search6.png)
+
+#### Content Management
+![Add Content](assets/tidydata-addcontent.png)
+
+#### Settings and Configuration
+![Settings](assets/tidydata-settings.png)
+
 ## Quick Start
 
 ### Prerequisites
