@@ -550,6 +550,13 @@ export default function Home() {
               onChange={(e) => setNewContent(e.target.value)}
               className="min-h-[200px]"
             />
+            <div className="flex justify-between items-center text-sm text-muted-foreground">
+              <div>
+                {newContent.trim() ? `${newContent.trim().split(/\s+/).length} words` : "0 words"}
+                <span className="mx-2">•</span>
+                {newContent.length} characters
+              </div>
+            </div>
             
             {selectedFiles.length > 0 && (
               <div className="flex flex-wrap gap-2">
