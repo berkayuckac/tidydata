@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useState, useRef, useEffect } from "react";
-import { Search, Image, FileText, X, Loader2, SlidersHorizontal, LayoutGrid, List } from "lucide-react";
+import { Search, Image, FileText, X, Loader2, SlidersHorizontal, LayoutGrid, List, Maximize2, Minimize2, ChevronRight } from "lucide-react";
 import { addTextContent, addImage } from "@/lib/api";
 import { Toaster, toast } from 'sonner';
 import { Slider } from "@/components/ui/slider";
@@ -18,6 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 type SearchResult = {
   type: "text" | "image";
@@ -59,7 +60,8 @@ export default function Home() {
     columns: 2
   });
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
-  const [showDetailView, setShowDetailView] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
+  const [panelSize, setPanelSize] = useState(30);
 
   // Load default threshold from settings on mount and listen for updates
   useEffect(() => {
@@ -271,19 +273,16 @@ export default function Home() {
       case "grid":
         return (
           <div 
-            className={`grid gap-4`}
+            className="grid gap-4"
             style={{ 
-              gridTemplateColumns: `repeat(${viewSettings.columns}, minmax(0, 1fr))`
+              gridTemplateColumns: `repeat(auto-fit, minmax(250px, 1fr))`
             }}
           >
             {searchResults.map((result, index) => (
               <Card 
                 key={index} 
                 className="overflow-hidden cursor-pointer transition-colors hover:bg-muted/50"
-                onClick={() => {
-                  setSelectedResult(result);
-                  setShowDetailView(true);
-                }}
+                onClick={() => openInPanel(result)}
               >
                 <CardContent className="p-4">
                   <div className="flex flex-col gap-4">
@@ -322,10 +321,7 @@ export default function Home() {
               <Card 
                 key={index}
                 className="cursor-pointer transition-colors hover:bg-muted/50"
-                onClick={() => {
-                  setSelectedResult(result);
-                  setShowDetailView(true);
-                }}
+                onClick={() => openInPanel(result)}
               >
                 <CardContent className="p-4">
                   <div className="flex gap-4">
@@ -364,10 +360,7 @@ export default function Home() {
               <div 
                 key={index} 
                 className="py-2 first:pt-0 last:pb-0 cursor-pointer transition-colors hover:bg-muted/50"
-                onClick={() => {
-                  setSelectedResult(result);
-                  setShowDetailView(true);
-                }}
+                onClick={() => openInPanel(result)}
               >
                 <div className="flex gap-4 items-center">
                   {result.type === "image" && result.image_data && (
@@ -397,70 +390,227 @@ export default function Home() {
     }
   };
 
-  const renderDetailView = () => {
+  const renderDetailPanel = () => {
     if (!selectedResult) return null;
 
     return (
-      <Dialog open={showDetailView} onOpenChange={setShowDetailView}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedResult.type === "image" ? "Image Details" : "Text Content"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {selectedResult.type === "image" ? (
-              <div className="space-y-4">
-                <div className="rounded-lg overflow-hidden bg-muted">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`data:${selectedResult.content_type};base64,${selectedResult.image_data}`}
-                    alt={selectedResult.description || "No description"}
-                    className="w-full h-auto object-contain"
+      <ResizablePanelGroup direction="horizontal">
+        <ResizablePanel 
+          key={`left-panel-${100 - panelSize}`}
+          defaultSize={100 - panelSize} 
+          minSize={30}
+          onResize={(size) => {
+            setPanelSize(100 - size);
+          }}
+        >
+          <div className="h-full p-6">
+            <div className="flex flex-col gap-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={searchInputRef}
+                    placeholder="Search your knowledge base... (⌘K)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    className="flex-1"
                   />
-                </div>
-                {selectedResult.description && (
-                  <p className="text-muted-foreground">{selectedResult.description}</p>
-                )}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>Score: {selectedResult.score.toFixed(2)}</span>
-                  {selectedResult.filename && (
-                    <>
-                      <span>•</span>
-                      <span>{selectedResult.filename}</span>
-                    </>
-                  )}
+                  <TooltipProvider>
+                    <Tooltip open={!showThreshold ? undefined : false}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowThreshold(!showThreshold)}
+                          className={showThreshold ? "bg-muted" : ""}
+                        >
+                          <SlidersHorizontal className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Adjust similarity threshold</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <div
+                    className={`overflow-hidden transition-all duration-300 ease-in-out flex items-center gap-2 shrink-0 ${
+                      showThreshold ? "opacity-100" : "w-0 opacity-0"
+                    }`}
+                    style={{
+                      width: showThreshold 
+                        ? `${Math.max(120, 200 - Math.max(0, (panelSize - 30) * 2))}px` 
+                        : "0"
+                    }}
+                  >
+                    <Slider
+                      value={[searchThreshold]}
+                      onValueChange={(value) => setSearchThreshold(value[0])}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      className="flex-1"
+                    />
+                    <div className="text-sm text-muted-foreground w-8 text-right">
+                      {(searchThreshold).toFixed(2)}
+                    </div>
+                  </div>
+                  <Button onClick={() => handleSearch()} disabled={isSearching}>
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4 mr-2" />
+                    )}
+                    Search
+                  </Button>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="whitespace-pre-wrap">{selectedResult.text}</p>
-                <p className="text-sm text-muted-foreground">
-                  Score: {selectedResult.score.toFixed(2)}
-                </p>
-              </div>
-            )}
+
+              {searchResults.length > 0 && (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between sticky top-0 bg-background py-2 z-10">
+                      <p className="text-sm text-muted-foreground">
+                        {searchResults.length} results found
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newSettings = { ...viewSettings, mode: "grid" as ViewMode };
+                            setViewSettings(newSettings);
+                            localStorage.setItem("tidydata-view-settings", JSON.stringify(newSettings));
+                          }}
+                          className={viewSettings.mode === "grid" ? "bg-muted" : ""}
+                        >
+                          <LayoutGrid className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newSettings = { ...viewSettings, mode: "list" as ViewMode };
+                            setViewSettings(newSettings);
+                            localStorage.setItem("tidydata-view-settings", JSON.stringify(newSettings));
+                          }}
+                          className={viewSettings.mode === "list" ? "bg-muted" : ""}
+                        >
+                          <List className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {renderSearchResults()}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        <ResizablePanel 
+          key={`right-panel-${panelSize}`}
+          defaultSize={panelSize} 
+          minSize={30}
+          onResize={(size) => {
+            setPanelSize(size);
+          }}
+        >
+          <div className="h-full border-l">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">
+                {selectedResult.type === "image" ? "Image Details" : "Text Content"}
+              </h2>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setPanelSize(panelSize === 30 ? 70 : 30);
+                  }}
+                >
+                  {panelSize === 30 ? (
+                    <Maximize2 className="h-4 w-4" />
+                  ) : (
+                    <Minimize2 className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setSelectedResult(null);
+                    setShowPanel(false);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto" style={{ height: "calc(100vh - 130px)" }}>
+              {selectedResult.type === "image" ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg overflow-hidden bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`data:${selectedResult.content_type};base64,${selectedResult.image_data}`}
+                      alt={selectedResult.description || "No description"}
+                      className="w-full h-auto object-contain"
+                    />
+                  </div>
+                  {selectedResult.description && (
+                    <p className="text-muted-foreground">{selectedResult.description}</p>
+                  )}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>Score: {selectedResult.score.toFixed(2)}</span>
+                    {selectedResult.filename && (
+                      <>
+                        <span>•</span>
+                        <span>{selectedResult.filename}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 prose prose-neutral dark:prose-invert max-w-none">
+                  <p className="whitespace-pre-wrap text-base leading-relaxed">
+                    {selectedResult.text}
+                  </p>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>Score: {selectedResult.score.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     );
+  };
+
+  const openInPanel = (result: SearchResult) => {
+    setSelectedResult(result);
+    setShowPanel(true);
   };
 
   return (
     <>
-      <div className="flex flex-col gap-6">
-        {/* Search Section */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Input
-              ref={searchInputRef}
-              placeholder="Search your knowledge base... (⌘K)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="flex-1"
-            />
+      {showPanel && selectedResult ? (
+        renderDetailPanel()
+      ) : (
+        <div className="flex flex-col gap-6 p-6">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
+              <Input
+                ref={searchInputRef}
+                placeholder="Search your knowledge base... (⌘K)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                className="flex-1"
+              />
               <TooltipProvider>
                 <Tooltip open={!showThreshold ? undefined : false}>
                   <TooltipTrigger asChild>
@@ -479,9 +629,14 @@ export default function Home() {
                 </Tooltip>
               </TooltipProvider>
               <div
-                className={`overflow-hidden transition-all duration-200 ease-in-out flex items-center gap-2 ${
-                  showThreshold ? "w-[200px] opacity-100" : "w-0 opacity-0"
+                className={`overflow-hidden transition-all duration-300 ease-in-out flex items-center gap-2 shrink-0 ${
+                  showThreshold ? "opacity-100" : "w-0 opacity-0"
                 }`}
+                style={{
+                  width: showThreshold 
+                    ? `${Math.max(120, 200 - Math.max(0, (panelSize - 30) * 2))}px` 
+                    : "0"
+                }}
               >
                 <Slider
                   value={[searchThreshold]}
@@ -495,58 +650,56 @@ export default function Home() {
                   {(searchThreshold).toFixed(2)}
                 </div>
               </div>
+              <Button onClick={() => handleSearch()} disabled={isSearching}>
+                {isSearching ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                Search
+              </Button>
             </div>
-            <Button onClick={() => handleSearch()} disabled={isSearching}>
-              {isSearching ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4 mr-2" />
-              )}
-              Search
-            </Button>
           </div>
-        </div>
 
-        {/* Results Section */}
-        {searchResults.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {searchResults.length} results found
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const newSettings = { ...viewSettings, mode: "grid" as ViewMode };
-                    setViewSettings(newSettings);
-                    localStorage.setItem("tidydata-view-settings", JSON.stringify(newSettings));
-                  }}
-                  className={viewSettings.mode === "grid" ? "bg-muted" : ""}
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const newSettings = { ...viewSettings, mode: "list" as ViewMode };
-                    setViewSettings(newSettings);
-                    localStorage.setItem("tidydata-view-settings", JSON.stringify(newSettings));
-                  }}
-                  className={viewSettings.mode === "list" ? "bg-muted" : ""}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
+          {searchResults.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {searchResults.length} results found
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const newSettings = { ...viewSettings, mode: "grid" as ViewMode };
+                      setViewSettings(newSettings);
+                      localStorage.setItem("tidydata-view-settings", JSON.stringify(newSettings));
+                    }}
+                    className={viewSettings.mode === "grid" ? "bg-muted" : ""}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const newSettings = { ...viewSettings, mode: "list" as ViewMode };
+                      setViewSettings(newSettings);
+                      localStorage.setItem("tidydata-view-settings", JSON.stringify(newSettings));
+                    }}
+                    className={viewSettings.mode === "list" ? "bg-muted" : ""}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
+              {renderSearchResults()}
             </div>
-            {renderSearchResults()}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      {/* Command Palette */}
       <CommandDialog open={showCommandPalette} onOpenChange={setShowCommandPalette}>
         <CommandInput placeholder="Type a command or search..." />
         <CommandList>
@@ -574,7 +727,6 @@ export default function Home() {
         </CommandList>
       </CommandDialog>
 
-      {/* Add Content Dialog */}
       <Dialog open={showAddContent} onOpenChange={setShowAddContent}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
@@ -646,9 +798,6 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Detail View Dialog */}
-      {renderDetailView()}
 
       <Toaster />
     </>
